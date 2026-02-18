@@ -5,10 +5,12 @@ Core/Src/stm32f4xx_it.c
 Core/Src/syscalls.c
 Core/Src/sysmem.c
 Core/Src/system_stm32f4xx.c
+Debug
 Drivers
 STM32F446RETX_FLASH.ld
 STM32F446RETX_RAM.ld
 .cproject
 .mxproject
 .project
+dspPlayground Debug.launch
 .settings
