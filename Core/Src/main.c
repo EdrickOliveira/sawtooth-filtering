@@ -21,7 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#define ARM_MATH_CM4
+#include "arm_math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,8 +51,26 @@ TIM_HandleTypeDef htim8;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint8_t dac_value = 0;
+uint8_t sawtooth_value = 0, filteredWave_value = 0;
 uint8_t adc_value;
+
+float32_t x_n, y_n;
+float32_t stateVariables[8];	//{x[n-1], x[n-2], y[n-1], y[n-2]} for each of the two stages
+const float32_t coefficients[10] = {
+		//first stage
+		1.175,	//b0
+		2.350,	//b1
+		1.175,	//b2
+		-1.235,	//a1
+		-0.451,	//a2
+		//second stage
+		0.500,	//b0
+		1.000,	//b1
+		0.500,	//b2
+		-1.790,	//a1
+		-0.893,	//a2
+};
+arm_biquad_casd_df1_inst_f32 filter;	//filter object. Is a struct that contains numStages, the stateVariables array and the coefficients
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -79,7 +98,8 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+	//initialize the filter as the model (two stages, defined coefficients)
+	arm_biquad_cascade_df1_init_f32(&filter, 2, &coefficients, &stateVariables);
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -107,9 +127,11 @@ int main(void)
   MX_TIM8_Init();
   /* USER CODE BEGIN 2 */
   HAL_DAC_Start(&hdac, DAC_CHANNEL_1);	//start sawtooth wave channel (PA4)
+  HAL_DAC_Start(&hdac, DAC_CHANNEL_2);	//start filtered wave channel (PA5)
 
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc_value, 1);	//start ADC - triggered between DAC updates
 
+  //TIM8 triggers an ADC conversion at output compare and a DAC update (sawtooth) at auto reload
   HAL_TIM_OC_Start(&htim8, TIM_CHANNEL_1);
   HAL_TIM_Base_Start_IT(&htim8);
   /* USER CODE END 2 */
@@ -255,6 +277,13 @@ static void MX_DAC_Init(void)
   sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
   sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
   if (HAL_DAC_ConfigChannel(&hdac, &sConfig, DAC_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** DAC channel OUT2 config
+  */
+  if (HAL_DAC_ConfigChannel(&hdac, &sConfig, DAC_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -405,21 +434,11 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
-
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : LD2_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -430,10 +449,18 @@ static void MX_GPIO_Init(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	//update DAC value at sample rate
 	if(htim->Instance == TIM8){
-		//at TIM*'s sample rate (~112.6kHz), it takes ~2.273ms (440Hz) to cover the DAC's [0; 256] range
-		dac_value++;	//as an 8-bit variable, it automatically resets at 256
+		//at TIM8's sample rate (~112.6kHz), it takes ~2.273ms (440Hz) to cover the DAC's [0; 256] range
+		sawtooth_value++;	//as an 8-bit variable, it automatically resets at 256
 
-		HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, dac_value);
+		HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, sawtooth_value);	//update sawtooth DAC (CH1) value
+
+		//calculate next value of the filter's output (y_n) according to the new measured input sample (x_n),
+		//the past values (filter.pState - stateVariables array) and the coefficients (filter.pCoeffs)
+		x_n = (float32_t)sawtooth_value;
+		arm_biquad_cascade_df1_f32(&filter, &x_n, &y_n, 1);
+		filteredWave_value = (uint8_t)y_n;
+
+		HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2, DAC_ALIGN_8B_R, filteredWave_value);	//update filtered wave DAC (CH2) value
 	}
 }
 /* USER CODE END 4 */
