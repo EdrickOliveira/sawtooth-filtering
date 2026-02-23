@@ -1,4 +1,6 @@
-Core/Inc
+Core/Inc/main.h
+Core/Inc/stm32f4xx_hal_conf.h
+Core/Inc/stm32f4xx_it.h
 Core/Startup
 Core/Src/stm32f4xx_hal_msp.c
 Core/Src/stm32f4xx_it.c
@@ -9,8 +11,5 @@ Debug
 Drivers
 STM32F446RETX_FLASH.ld
 STM32F446RETX_RAM.ld
-.cproject
-.mxproject
-.project
 dspPlayground Debug.launch
 .settings
