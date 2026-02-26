@@ -58,17 +58,17 @@ float32_t x_n, y_n;
 float32_t stateVariables[8];	//{x[n-1], x[n-2], y[n-1], y[n-2]} for each of the two stages
 const float32_t coefficients[10] = {
 		//first stage
-		1.175,	//b0
-		2.350,	//b1
-		1.175,	//b2
-		-1.235,	//a1
-		-0.451,	//a2
+		0.033,	//b0
+		-0.067,	//b1
+		0.033,	//b2
+		1.975,	//a1
+		-0.975,	//a2
 		//second stage
-		0.500,	//b0
-		1.000,	//b1
-		0.500,	//b2
-		-1.790,	//a1
-		-0.893,	//a2
+		0.250,	//b0
+		-0.499,	//b1
+		0.250,	//b2
+		1.991,	//a1
+		-0.992,	//a2
 };
 arm_biquad_casd_df1_inst_f32 filter;	//filter object. Is a struct that contains numStages, the stateVariables array and the coefficients
 /* USER CODE END PV */
