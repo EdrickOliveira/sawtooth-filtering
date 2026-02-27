@@ -136,12 +136,6 @@ int main(void)
   HAL_TIM_Base_Start(&htim3);							//start 2kHz ADC trigger timer
 
   HAL_TIM_Base_Start_IT(&htim8);	//TIM8 triggers a DAC update (sawtooth) at auto reload
-
-  //enable HCLK (90MHz) ticks counter
-  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-  DWT->CYCCNT = 0;
-  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
