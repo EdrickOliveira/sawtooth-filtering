@@ -46,6 +46,7 @@ DMA_HandleTypeDef hdma_adc1;
 
 DAC_HandleTypeDef hdac;
 
+TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim8;
 
 UART_HandleTypeDef huart2;
@@ -58,17 +59,17 @@ float32_t x_n, y_n;
 float32_t stateVariables[8];	//{x[n-1], x[n-2], y[n-1], y[n-2]} for each of the two stages
 const float32_t coefficients[10] = {
 		//first stage
-		0.033,	//b0
-		-0.067,	//b1
-		0.033,	//b2
-		1.975,	//a1
-		-0.975,	//a2
+		0.5,	//b0
+		0.898,	//b1
+		0.5,	//b2
+		0.391,	//a1
+		-0.21,	//a2
 		//second stage
 		0.250,	//b0
-		-0.499,	//b1
+		0.286,	//b1
 		0.250,	//b2
-		1.991,	//a1
-		-0.992,	//a2
+		-0.162,	//a1
+		-0.757,	//a2
 };
 arm_biquad_casd_df1_inst_f32 filter;	//filter object. Is a struct that contains numStages, the stateVariables array and the coefficients
 /* USER CODE END PV */
@@ -81,6 +82,7 @@ static void MX_USART2_UART_Init(void);
 static void MX_DAC_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM8_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -125,15 +127,21 @@ int main(void)
   MX_DAC_Init();
   MX_ADC1_Init();
   MX_TIM8_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   HAL_DAC_Start(&hdac, DAC_CHANNEL_1);	//start sawtooth wave channel (PA4)
   HAL_DAC_Start(&hdac, DAC_CHANNEL_2);	//start filtered wave channel (PA5)
 
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc_value, 1);	//start ADC - triggered between DAC updates
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc_value, 1);	//start ADC
+  HAL_TIM_Base_Start(&htim3);							//start 2kHz ADC trigger timer
 
-  //TIM8 triggers an ADC conversion at output compare and a DAC update (sawtooth) at auto reload
-  HAL_TIM_OC_Start(&htim8, TIM_CHANNEL_1);
-  HAL_TIM_Base_Start_IT(&htim8);
+  HAL_TIM_Base_Start_IT(&htim8);	//TIM8 triggers a DAC update (sawtooth) at auto reload
+
+  //enable HCLK (90MHz) ticks counter
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CYCCNT = 0;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -220,8 +228,8 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ScanConvMode = DISABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISINGFALLING;
-  hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T8_CC1;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
+  hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T3_TRGO;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.NbrOfConversion = 1;
   hadc1.Init.DMAContinuousRequests = ENABLE;
@@ -294,6 +302,51 @@ static void MX_DAC_Init(void)
 }
 
 /**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = (450-1);
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = (100-1);
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+
+}
+
+/**
   * @brief TIM8 Initialization Function
   * @param None
   * @retval None
@@ -307,8 +360,6 @@ static void MX_TIM8_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
-  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
 
   /* USER CODE BEGIN TIM8_Init 1 */
 
@@ -329,35 +380,9 @@ static void MX_TIM8_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_OC_Init(&htim8) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_OC1REF;
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim8, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_TOGGLE;
-  sConfigOC.Pulse = 8;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
-  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-  if (HAL_TIM_OC_ConfigChannel(&htim8, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
-  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
-  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
-  sBreakDeadTimeConfig.DeadTime = 0;
-  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
-  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
-  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
-  if (HAL_TIMEx_ConfigBreakDeadTime(&htim8, &sBreakDeadTimeConfig) != HAL_OK)
   {
     Error_Handler();
   }
@@ -453,15 +478,22 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 		sawtooth_value++;	//as an 8-bit variable, it automatically resets at 256
 
 		HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, sawtooth_value);	//update sawtooth DAC (CH1) value
+	}
+}
 
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+	//whenever the ADC conversion is done (should be at 2kHz)
+	if (hadc->Instance == ADC1)
+    {
 		//calculate next value of the filter's output (y_n) according to the new measured input sample (x_n),
 		//the past values (filter.pState - stateVariables array) and the coefficients (filter.pCoeffs)
-		x_n = (float32_t)sawtooth_value;
+		x_n = (float32_t)adc_value;
 		arm_biquad_cascade_df1_f32(&filter, &x_n, &y_n, 1);
 		filteredWave_value = (uint8_t)y_n;
 
 		HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2, DAC_ALIGN_8B_R, filteredWave_value);	//update filtered wave DAC (CH2) value
-	}
+    }
 }
 /* USER CODE END 4 */
 
