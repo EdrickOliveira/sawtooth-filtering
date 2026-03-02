@@ -59,17 +59,17 @@ float32_t x_n, y_n;
 float32_t stateVariables[8];	//{x[n-1], x[n-2], y[n-1], y[n-2]} for each of the two stages
 const float32_t coefficients[10] = {
 		//first stage
-		0.5,	//b0
-		0.898,	//b1
-		0.5,	//b2
-		0.391,	//a1
-		-0.21,	//a2
+		0.035606993293472465,	//b0
+		-0.059435617389292664,	//b1
+		0.03560699329347246,	//b2
+		1.8610161687560092,		//a1
+		-0.8704695751741188,	//a2
 		//second stage
-		0.250,	//b0
-		0.286,	//b1
-		0.250,	//b2
-		-0.162,	//a1
-		-0.757,	//a2
+		0.250,					//b0
+		-0.48237472261520914,	//b1
+		0.25000000000000006,	//b2
+		1.9353688387037393,		//a1
+		-0.9584840240641256,	//a2
 };
 arm_biquad_casd_df1_inst_f32 filter;	//filter object. Is a struct that contains numStages, the stateVariables array and the coefficients
 /* USER CODE END PV */
@@ -314,7 +314,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = (450-1);
+  htim3.Init.Prescaler = (45-1);
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = (100-1);
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
